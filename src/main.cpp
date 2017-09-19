@@ -202,7 +202,7 @@ int main() {
   // have a reference velocity to target
   double ref_vel = 49.5; //mph
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -238,6 +238,9 @@ int main() {
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
+			//json msgJson;
+
+			//start
 
 			int prev_size = previous_path_x.size();
 
@@ -264,6 +267,9 @@ int main() {
 				double prev_car_y = car_y - sin(car_yaw);
 
 				ptsx.push_back(prev_car_x);
+				ptsx.push_back(car_x);
+
+				ptsy.push_back(prev_car_y);
 				ptsy.push_back(car_y);
 			}
 			//use the previous path's and points as starting reference
@@ -273,8 +279,8 @@ int main() {
 				ref_x = previous_path_x[prev_size - 1];
 				ref_y = previous_path_y[prev_size - 1];
 
-				double ref_x_prev = previous_path_x[prev_size-1];
-				double ref_y_prev = previous_path_y[prev_size-1];
+				double ref_x_prev = previous_path_x[prev_size-2];
+				double ref_y_prev = previous_path_y[prev_size-2];
 				ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
 
 				//use two points that make the path tangent to the previous path's and point
