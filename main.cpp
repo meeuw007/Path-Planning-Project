@@ -198,12 +198,11 @@ int main() {
   }
   // start in lane 1;
   int lane = 1;
-  double t = 0;
 
   // have a reference velocity to target
   double ref_vel = 0.0; //mph
 
-  h.onMessage([&ref_vel, &t, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -214,306 +213,254 @@ int main() {
 
       auto s = hasData(data);
 
+      if (s != "") {
+        auto j = json::parse(s);
+        
+        string event = j[0].get<string>();
+        
+        if (event == "telemetry") {
+          // j[1] is the data JSON object
+          
+        	// Main car's localization Data
+          	double car_x = j[1]["x"];
+          	double car_y = j[1]["y"];
+          	double car_s = j[1]["s"];
+          	double car_d = j[1]["d"];
+          	double car_yaw = j[1]["yaw"];
+          	double car_speed = j[1]["speed"];
 
-	 // double t = 0;
-	  if (s != "") {
-		  auto j = json::parse(s);
+          	// Previous path data given to the Planner
+          	auto previous_path_x = j[1]["previous_path_x"];
+          	auto previous_path_y = j[1]["previous_path_y"];
+          	// Previous path's end s and d values 
+          	double end_path_s = j[1]["end_path_s"];
+          	double end_path_d = j[1]["end_path_d"];
 
-		  string event = j[0].get<string>();
+          	// Sensor Fusion Data, a list of all other cars on the same side of the road.
+          	auto sensor_fusion = j[1]["sensor_fusion"];
+			//json msgJson;
 
-		  if (event == "telemetry") {
-			  // j[1] is the data JSON object
-
-				// Main car's localization Data
-			  //double t = 0.0;
-			  double car_x = j[1]["x"];
-			  double car_y = j[1]["y"];
-			  double car_s = j[1]["s"];
-			  double car_d = j[1]["d"];
-			  double car_yaw = j[1]["yaw"];
-			  double car_speed = j[1]["speed"];
-
-			  // Previous path data given to the Planner
-			  auto previous_path_x = j[1]["previous_path_x"];
-			  auto previous_path_y = j[1]["previous_path_y"];
-			  // Previous path's end s and d values 
-			  double end_path_s = j[1]["end_path_s"];
-			  double end_path_d = j[1]["end_path_d"];
-
-			  // Sensor Fusion Data, a list of all other cars on the same side of the road.
-			  auto sensor_fusion = j[1]["sensor_fusion"];
-			  //json msgJson;
-
-			  //start
-			  int prev_size = 0;
-			  prev_size = previous_path_x.size();
-
-			  if (prev_size > 0)
-			  {
-				  car_s = end_path_s;
-			  }
-			  //cost variables
-			  bool too_close = false;
-			  double cost_laneto1 = 0;
-			  double cost_lane1to0 = 0;
-			  double cost_lane1to2 = 0;
-			  double cost_lane2to1 = 0;
-			  double cost_lane0to1 = 0;
-			  double lane0_vel = 50;
-			  double lane2_vel = 49;
-			  
-
-			  //find rev_v to use
-			  for (int i = 0; i < sensor_fusion.size(); i++)
-			  {
-				  
-				  float d = sensor_fusion[i][6];
-				  double vx = sensor_fusion[i][3];
-				  double vy = sensor_fusion[i][4];
-				  double check_speed = sqrt(vx*vx + vy*vy);
-				  double vel_too_close_car = 2.24 * check_speed;
-				  
-				  double check_car_s = sensor_fusion[i][5];
-				  double too_close_car_id = sensor_fusion[i][0];
-				 
-				  check_car_s += ((double)prev_size*.02*check_speed);// i
-				  ///checking the car in my lane///
-				  /// controlling speed; the closer the car the more deacceleration
-				  if (d < (2 + 4 * lane + 2) && d >(2 + 4 * lane - 2))
-				  {
-					  
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 60))
-					  {
+			//start
+			int prev_size = 0;
+			prev_size = previous_path_x.size();
 
 
-						  if (vel_too_close_car < ref_vel)
-						  {
-							  ref_vel -= 0.35;
-							  
-						  }
+			//////////from here
+			
+			if (prev_size > 0)
+			{
+				car_s = end_path_s;
+			}
 
-					  }
+			bool too_close = false;
 
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))
-					  {
-
-
-
-						  too_close = true;
-						  if (vel_too_close_car < ref_vel)
-						  {
-							  ref_vel -= 0.5;
-							  
-						  }
-					  }
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 20))
-					  {
-						  if (vel_too_close_car < ref_vel)
-						  {
-							  ref_vel -= 0.7;
-							  
-						  }
-
-					  }
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 15))
-					  {
-						  if (vel_too_close_car < ref_vel)
-						  {
-							  ref_vel -= 1.0;
-							  cost_lane1to0 += 1;
-							  cost_lane0to1 += 1;
-							  cost_lane1to2 += 1;
-							  cost_lane2to1 += 1;
-							  
-						  }
-
-					  }
+			//find rev_v to use
+			for (int i = 0; i < sensor_fusion.size(); i++)
+			{
+				//car is in my lane
+				cout << "version c1" << endl;
+				float d = sensor_fusion[i][6];
+				if (d < (2 + 4 * lane + 2) && d >(2 + 4 * lane - 2))
+				{
+					double vx = sensor_fusion[i][3];
+					double vy = sensor_fusion[i][4];
+					double check_speed = sqrt(vx*vx + vy*vy);
+					//double check_car_s = 1000;
+					double check_car_s = sensor_fusion[i][5];
+					double too_close_car_id = sensor_fusion[i][0];
+					//cout << "init chec_car_s= " << check_car_s << "car_s= " << car_s << endl;
+					check_car_s += ((double)prev_size*.02*check_speed);// if using previous points can project s value out..
+					//check s values greater than mine and s gap
+					if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))
+					{
+						//do some logic here, lower reference velocity so we dont crash into the car infront of us, could
+						//also flag to try to change lane
+						//ref_vel = 29.5; //mph
+						too_close = true;
+						//cout << "car_s= " << car_s << "check_car_s= " << check_car_s << endl;
+						cout << "car " << too_close_car_id << " is " << check_car_s - car_s << " m ahead"  << endl;
+						/*if (lane > 0)
+						{*/
+					}//after finding if gap is too close for comfort
 
 
-				  } 
-				  //////////////////////////////////////////////////////////////////
-				////evaluating sensor reading and calculating cost
-				  ///////////////////////////////////////////////////////////
+				  } //car in autonomous car's lane
 				//checking lane 0
-				 
-				  if (d < (2 + 4 * 0 + 2) && d >(2 + 4 * 0 - 2))
-
-				  {
-					  if (check_car_s > car_s - 20 && check_car_s < car_s + 20)
-					  {
-						  cost_lane1to0 += 1;
-						  cost_lane2to1 += 1;
-						  
-					  }
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 250))// && (ref_vel - 5 > vel_too_close_car))
-					  {
-						  if (check_speed < lane0_vel)
-						  {
-							  lane0_vel = check_speed;
-						  }
-					  }
-
-
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))// && (ref_vel - 5 > vel_too_close_car))
-					  {
-						  cost_lane1to0 += 1;
-						  
-					  }
+				if (d < (2 + 4 * lane + 2) && d >(2 + 4 * lane - 2))
+				{
+					 vx = sensor_fusion[i][3];
+					 vy = sensor_fusion[i][4];
+					 check_speed = sqrt(vx*vx + vy*vy);
+					//double check_car_s = 1000;
+					 check_car_s = sensor_fusion[i][5];
+					 too_close_car_id = sensor_fusion[i][0];
+					//cout << "init chec_car_s= " << check_car_s << "car_s= " << car_s << endl;
+					check_car_s += ((double)prev_size*.02*check_speed);// if using previous points can project s value out..
+																	   //check s values greater than mine and s gap
+					if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))
+					{
+						//do some logic here, lower reference velocity so we dont crash into the car infront of us, could
+						//also flag to try to change lane
+						//ref_vel = 29.5; //mph
+						//too_close = true;
+						//cout << "car_s= " << car_s << "check_car_s= " << check_car_s << endl;
+						cout << "car " << too_close_car_id << " is " << check_car_s - car_s << " m cheked ahead in lane 0" << endl;
+						/*if (lane > 0)
+						{*/
+					}//after finding if gap is too close for comfort
 
 
-					  if ((check_car_s < car_s) && ((car_s - check_car_s) < 25))// && (ref_vel - 5 < vel_too_close_car))
-					  {
-						  
-						  cost_lane1to0 += 1;
-						  
-					  }
+				} //after checking cars in lane o
 
 
 
-				  }
-				  ////checking lane 1
-				  if (d < (2 + 4 * 1 + 2) && d >(2 + 4 * 1 - 2))
-
-				  {
-					  if (check_car_s > car_s - 20 && check_car_s < car_s + 20)
-					  {
-
-						  cost_lane0to1 += 1;
-						  cost_lane2to1 += 1;
-						 
-					  }
-
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))// && (ref_vel - 5 > vel_too_close_car))
-					  {
-						  cost_lane0to1 += 1;
-						  cost_lane2to1 += 1;
-
-					  }
-
-
-					  if ((check_car_s < car_s) && ((car_s - check_car_s) < 25))// && (ref_vel + 5 < vel_too_close_car))
-					  {
-						  
-						  cost_lane0to1 += 1;
-						  cost_lane2to1 += 1;
-						  
-					  }
 
 
 
-				  }
-				  ////checking lane 2
-				  if (d < (2 + 4 * 2 + 2) && d >(2 + 4 * 2 - 2))
+				////////////llllll
+                } 
 
-				  {
-					  if (check_car_s > car_s - 20 && check_car_s < car_s + 20)
-					  {
-						  cost_lane1to2 += 1;
-						  cost_lane0to1 += 1;
-						  
-					  }
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 250))// && (ref_vel - 5 > vel_too_close_car))
-					  {
-						  if (check_speed < lane2_vel)
-						  {
-							  lane2_vel = check_speed;
-						  }
-					  }
-					  if ((check_car_s > car_s) && ((check_car_s - car_s) < 40))// && (ref_vel - 5 > vel_too_close_car))
-					  {
-						  cost_lane1to2 += 1;
-						 
-					  }
+			if (lane == 0)
+			{
 
+				cout << "lane 0 mode" << endl;
+				cout << "considering lane change right" << endl;
+				bool too_close_car_ahead_lane1x = false;
+				bool too_close_car_behind_lane1x = false;
 
-					  if ((check_car_s < car_s) && ((car_s - check_car_s) < 25))// && (ref_vel + 5 < vel_too_close_car))
-					  {
-						  
-						  cost_lane1to2 += 1;
-						  
-					  }
+				for (int i = 0; i < sensor_fusion.size(); i++)
+				{
+					double vxxx = sensor_fusion[i][3];
+					double vyxx = sensor_fusion[i][4];
+					double check_speedxx = sqrt(vxxx*vxxx + vyxx*vyxx);
+					double check_car_sxx = sensor_fusion[i][5];
+					check_car_sxx += ((double)prev_size*.02*check_speedxx);
+					float dxxx = sensor_fusion[i][6];
+					float car_idxx = sensor_fusion[i][0];
+					double too_close_car_idxx = sensor_fusion[i][0];
+					//if (dx < (2 + 4 * 0 + 2) && dx >(2 + 4 * 0 - 2))
+
+					//cout << "car" <<  in left lane is" << check_car_sx - car_s << "meters ahead dx " << endl;
+					if (dxxx < (2 + 4 * 1 + 2) && dxxx >(2 + 4 * 1 - 2))
+					{
 
 
+						if ((check_car_sxx > car_s) && ((check_car_sxx - car_s) < 40))
+						{
+							//do some logic here, lower reference velocity so we dont crash into the car infront of us, could
+							//also flag to try to change lane
+							//ref_vel = 29.5; //mph
+							too_close_car_ahead_lane1x = true;
+							cout << "car " << too_close_car_idxx << " is " << check_car_sxx - car_s << " m ahead" << endl;
+							cout << "ccccccar up ahead in lane 1, no lane change possible" << endl;
+							/*if (lane > 0)
+							{*/
 
-				  }
-				 
-			  }
-			  ////////////////////////////////////////////////////////////////
-			  ////////Behaviour Planner///////////////////////////////
-			  ////////////////////////////////////////////////
-
-
-			  if (too_close)
-			  {
-				  ref_vel -= 0.7;
-			  }
-			  if (lane == 0)
-			  {
-				  if ((cost_lane0to1 < 1) && (t > 20))
-				  {
-					  lane = 1;
-					  cout << "lane change 0 to 1 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-					  t = 0;
-				  }
-			  }
-			  if (lane == 1)
-			  {
-				  if (too_close && (cost_lane1to0 < 1) && (cost_lane1to2 < 1) && (t > 20))
-				  {
-					  if (lane2_vel > lane0_vel)
-					  {
-						  lane = 2;
-						  cout << "lane change 1 to 2 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-						  t = 0;
-					  }
-					  if (lane2_vel < lane0_vel)
-					  {
-						  lane = 0;
-						  cout << "lane change 1 to 0 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-						  t = 0;
-					  }
-				  }
-				  if (too_close && (cost_lane1to0 < 1) && (t > 20))
-				  {
-					  lane = 0;
-					  cout << "lane change 1 to 0 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-					  t = 0;
-				  }
-				  if (too_close && (cost_lane1to2 < 1) && (t > 20))
-				  {
-					  lane = 2;
-					  cout << "lane change 1 to 2 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-					  t = 0;
-				  }
+							//`lane = 0;
+						}
+						else if
+							((check_car_sxx < car_s) && ((car_s - check_car_sxx) < 25))
+						{
+							too_close_car_behind_lane1x = true;
+							cout << " cccccccar too close from behind in lane 1, no lane change possible" << endl;
+						}
 
 
-			  }
-			  if (lane == 2)
-			  {
-				  if ((cost_lane2to1 < 1) && (t > 20))
-				  {
-					  lane = 1;
-					  cout << "lane change 2 to 1 XXXXXXXXXXXXXXXXXXXXXXX" << endl;
-					  t = 0;
-				  }
-			  }
-			t += 1;
-			if (ref_vel < 49.0)
+					}
+
+				}
+			
+			//}
+			if (!too_close_car_ahead_lane1x) //&& !(too_close_car_behind_lane1))
+			{
+				if (!too_close_car_behind_lane1x)
+				{
+					lane = 1;
+					cout << "lanechangeright" << endl;
+
+					
+				}
+			}
+
+			cout << "lane " << lane << " mode" << endl;
+				
+				if (too_close)
+				{
+					cout << "too-close in lane 0" << endl;
+					ref_vel -= 1.0;
+					cout << "slowing down in lane 0" << endl;
+				}
+				//lane = 1;
+			}
+			if(too_close && lane == 1)
+
+			{
+				
+				cout << "slowing down" << endl;
+				ref_vel -= 0.7; //.5; //1.00;//.224;
+				cout << "considering lane change left" << endl;
+				bool too_close_car_ahead_lane1 = false;
+				bool too_close_car_behind_lane1 = false;
+				for (int i = 0; i < sensor_fusion.size(); i++)
+					{
+						double vxx = sensor_fusion[i][3];
+						double vyx = sensor_fusion[i][4];
+						double check_speedx = sqrt(vxx*vxx + vyx*vyx);
+						double check_car_sx = sensor_fusion[i][5];
+						check_car_sx += ((double)prev_size*.02*check_speedx);
+						float dx = sensor_fusion[i][6];
+						float car_idx = sensor_fusion[i][0];
+						double too_close_car_idx = sensor_fusion[i][0];
+							//if (dx < (2 + 4 * 0 + 2) && dx >(2 + 4 * 0 - 2))
+						
+							//cout << "car" <<  in left lane is" << check_car_sx - car_s << "meters ahead dx " << endl;
+						if (dx < (2 + 4 * 0 + 2) && dx >(2 + 4 * 0 - 2))
+							{
+						
+								if ((check_car_sx > car_s) && ((check_car_sx - car_s) < 40))
+									{
+							
+							
+										too_close_car_ahead_lane1 = true;
+										cout << "car " << too_close_car_idx << " is " << check_car_sx - car_s << " m ahead" << endl;
+										cout << "car up ahead in lane 0, no lane change possible" << endl;
+							
+									}
+								else if	((check_car_sx < car_s) && ((car_s - check_car_sx) < 25))
+									{
+										too_close_car_behind_lane1 = true;
+										cout << "car too close from behind in lane 0, no lane change possible" << endl;
+									}
+						
+
+					}
+					
+					
+					
+					
+				}
+				if (!too_close_car_ahead_lane1) //&& !(too_close_car_behind_lane1))
+				{
+					if (!too_close_car_behind_lane1)
+					{
+						lane = 0;
+						cout << "lanechange" << endl;
+						//cout << "car_s = " << car_s << endl;
+						//cout << "check_car_sx = " << check_car_sx << endl;
+					}
+				}
+
+
+			}
+			else if (ref_vel < 49.0)
 			{
 				ref_vel += .648;//.224;
 			}
 			
-			cout << cost_lane1to0 << " = cost_lane1to0 " << endl;
-			cout << cost_lane1to2 << " = cost_lane1to2 " << endl;
-			cout << cost_lane0to1 << " = cost_lane0to1 " << endl;
-			cout << cost_lane2to1 << " = cost_lane2to1 " << endl;
-			cout << t << " = t" << endl;
-			cout << 2.24 * lane0_vel << " = lane0_vel" << endl;
-			cout << 2.24 * lane2_vel << " = lane2_vel" << endl;
-			cout << ref_vel << " = ref_vel" << endl;
+			
 
-			////////////////
-			//////////////////
+			//insertcode
+			///
 
 			vector<double> ptsx;
 			vector<double> ptsy;
@@ -556,20 +503,26 @@ int main() {
 				ptsy.push_back(ref_y_prev);
 				ptsy.push_back(ref_y);
 			}
-			
-			//in frenet add evenly 40m spaced points ahead of the starting reference
-			vector<double> next_wp0 = getXY(car_s + 40, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-			vector<double> next_wp1 = getXY(car_s + 80, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-			vector<double> next_wp2 = getXY(car_s + 120, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-			
+
+			//in frenet add evenly 30m spaced points ahead of the starting reference
+			vector<double> next_wp0 = getXY(car_s + 30, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			vector<double> next_wp1 = getXY(car_s + 60, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			vector<double> next_wp2 = getXY(car_s + 90, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			//vector<double> next_wp3 = getXY(car_s + 120, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+			//vector<double> next_wp4 = getXY(car_s + 150, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
 			ptsx.push_back(next_wp0[0]);
 			ptsx.push_back(next_wp1[0]);
 			ptsx.push_back(next_wp2[0]);
-			
+			//ptsx.push_back(next_wp3[0]);
+			//ptsx.push_back(next_wp4[0]);
+
 			ptsy.push_back(next_wp0[1]);
 			ptsy.push_back(next_wp1[1]);
 			ptsy.push_back(next_wp2[1]);
-			
+			//ptsy.push_back(next_wp3[1]);
+			//ptsy.push_back(next_wp4[1]);
+
 			for (int i = 0; i < ptsx.size(); i++)
 			{
 				//shift car referencde angle to 0 degrees
@@ -605,14 +558,14 @@ int main() {
 			}
 
 			//calculate how to break up spline points so that we travel at our desired reference velocity
-			double target_x = 40.0;
+			double target_x = 30.0;
 			double target_y = s(target_x);
 			double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
 
 			double x_add_on = 0;
 
-			// fill up the rest of our pat planner after filling it with previous points, here we will always output 80 points
-			for (int i = 1; i <= 80 - previous_path_x.size(); i++) {
+			// fill up the rest of our pat planner after filling it with previous points, here we will always output 50 points
+			for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
 
 				double N = (target_dist / (.02*ref_vel / 2.24));
 				double x_point = x_add_on + (target_x) / N;

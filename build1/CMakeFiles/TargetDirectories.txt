@@ -1,3 +1,0 @@
-/mnt/c/project1term2/CarND-Path-Planning-Project-master/build1/CMakeFiles/edit_cache.dir
-/mnt/c/project1term2/CarND-Path-Planning-Project-master/build1/CMakeFiles/rebuild_cache.dir
-/mnt/c/project1term2/CarND-Path-Planning-Project-master/build1/CMakeFiles/path_planning.dir
